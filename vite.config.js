@@ -12,12 +12,14 @@ export default defineConfig({
     },
   },
   server: {
-    // 开发环境通过代理转发 /api 请求到后端 movie-ticker-master 服务，绕过浏览器 CORS。
+    // 开发代理：前端统一以 /api 为前缀发请求，Vite 把 /api 去掉后转发到后端。
+    // 后端 application.yml 配置 port:8085，无 context-path，Controller 映射从 /auth 开始。
+    // 请求链路：前端 /api/auth/login → Vite rewrite → http://localhost:8085/auth/login
     proxy: {
       '/api': {
-        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8080',
+        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8085',
         changeOrigin: true,
-        rewrite: (path) => path,
+        rewrite: (path) => path.replace(/^\/api/, ''),
       },
     },
   },

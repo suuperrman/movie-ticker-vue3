@@ -5,6 +5,7 @@ import App from './App.vue';
 import router from './router/index.js';
 import { useUserStore } from './stores/user.js';
 import './styles/main.css';
+import './styles/auth.css';
 
 const app = createApp(App);
 const pinia = createPinia();

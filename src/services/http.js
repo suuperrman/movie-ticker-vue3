@@ -9,7 +9,8 @@ export const http = axios.create({
   timeout: REQUEST_TIMEOUT_MS,
 });
 
-// ===== 请求拦截器：自动注入 JWT =====
+// ===== 请求拦截器：自动注入 JWT Access Token =====
+// 后端 TokenResponse.accessToken 在 JSON 中返回，Refresh Token 在 HttpOnly Cookie 中（无需前端处理）
 http.interceptors.request.use(
   (config) => {
     const token = getToken();
@@ -21,31 +22,29 @@ http.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// ===== 响应拦截器：解包数据 + 处理鉴权失效 =====
+// ===== 响应拦截器：解包 + 统一错误处理 =====
+// 后端 Result 格式：{ success: boolean, errorMsg: string, data: T, total: Long }
 http.interceptors.response.use(
-  // 成功：后端统一返回 { code, message, data }，解包 data 交给业务层
+  // HTTP 200 — 但后端业务可能 success=false
   (response) => {
     const body = response.data;
-    // 如果后端返回标准格式 { code, message, data }，且 code === 200，直接返回 data
-    if (body && typeof body === 'object' && 'code' in body) {
-      if (body.code === 200) {
+    if (body && typeof body === 'object' && 'success' in body) {
+      if (body.success === true) {
         return body.data;
       }
-      // 业务错误码：抛出带有 message 的 Error，由业务层决定展示
-      const err = new Error(body.message || `请求失败 (code: ${body.code})`);
-      err.code = body.code;
-      err.data = body.data;
+      // 业务失败（success=false）：用 errorMsg 构建 Error 抛出
+      const err = new Error(body.errorMsg || '请求失败');
+      err.success = false;
       return Promise.reject(err);
     }
-    // 非标准格式（如直接返回字符串），原样透传
+    // 非标准格式（理论上不会），原样透传
     return body;
   },
   // HTTP 错误（4xx / 5xx）
   (error) => {
     if (error.response?.status === 401) {
-      // Token 过期或无效：清除本地登录态并触发全局登出事件
+      // Token 过期或无效：清除本地登录态 + 通知全局登出
       removeToken();
-      // 通过 CustomEvent 通知路由守卫或其他模块跳转登录
       window.dispatchEvent(new CustomEvent('auth:logout'));
     }
     return Promise.reject(error);
