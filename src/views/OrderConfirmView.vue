@@ -139,11 +139,11 @@ onMounted(loadOrder);
       <div class="card price-card">
         <div class="price-row">
           <span>票价</span>
-          <span>¥{{ order.totalAmount?.toFixed(2) }}</span>
+          <span>¥{{ Number(order.totalAmount ?? 0).toFixed(2) }}</span>
         </div>
         <div class="price-row total">
           <span>实付</span>
-          <span class="amount">¥{{ order.totalAmount?.toFixed(2) }}</span>
+          <span class="amount">¥{{ Number(order.totalAmount ?? 0).toFixed(2) }}</span>
         </div>
       </div>
 
@@ -158,7 +158,7 @@ onMounted(loadOrder);
         <button class="cancel-btn" type="button" @click="handleCancel">取消订单</button>
         <button class="primary-button pay-btn" type="button" :disabled="paying" @click="handlePay">
           <CreditCard :size="16" />
-          {{ payState === 'paying' ? '支付中...' : `立即支付 ¥${order.totalAmount?.toFixed(2)}` }}
+          {{ payState === 'paying' ? '支付中...' : `立即支付 ¥${Number(order.totalAmount ?? 0).toFixed(2)}` }}
         </button>
         <p v-if="payError" class="pay-error">{{ payError }}</p>
       </div>

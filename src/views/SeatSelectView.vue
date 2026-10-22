@@ -176,11 +176,12 @@ async function handleConfirm() {
   error.value = '';
   try {
     // 把选中的 rowNo-colNo 组合键转成真实的 schedule_seat id 列表
+    // 关键：保持雪花 ID 为字符串，不要 Number()（超过 JS MAX_SAFE_INTEGER 会丢精度）
     const seatIds = selectedSeatIds.value.map(key => {
       const [rowNo, colNo] = key.split('-').map(Number);
       const seat = seatStatusMap.value.get(`${rowNo}-${colNo}`);
-      return seat ? Number(seat.id) : 0;
-    }).filter(id => id > 0);
+      return seat ? String(seat.id) : null;
+    }).filter(id => id !== null && id !== '0');
 
     if (seatIds.length === 0) {
       error.value = '座位数据异常，请刷新重试';
