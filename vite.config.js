@@ -17,7 +17,7 @@ export default defineConfig({
     // 请求链路：前端 /api/auth/login → Vite rewrite → http://localhost:8085/auth/login
     proxy: {
       '/api': {
-        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8085',
+        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8086',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },

@@ -17,8 +17,21 @@ const routes = [
     component: () => import('@/views/MovieDetailView.vue'),
     meta: { title: '电影详情' },
   },
-  // 后续阶段注册受保护页面：
-  // { path: '/mine', name: 'mine', component: () => import('@/views/MyOrderView.vue'), meta: { requiresAuth: true, title: '我的订单' } },
+  {
+    // 选座购票页（从电影详情点击"选座购票"进来）
+    // query: cinemaId / date / scheduleId(可选)
+    path: '/movie/:movieId/buy',
+    name: 'seat-select',
+    component: () => import('@/views/SeatSelectView.vue'),
+    meta: { title: '选择场次座位' },
+  },
+  {
+    // 订单确认/支付页（下单成功后跳转）
+    path: '/order/:orderId/confirm',
+    name: 'order-confirm',
+    component: () => import('@/views/OrderConfirmView.vue'),
+    meta: { title: '确认订单', requiresAuth: true },
+  },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { title: '404' } },
 ];
 

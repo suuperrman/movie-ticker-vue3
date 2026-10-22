@@ -135,7 +135,11 @@ onMounted(loadAll);
                 <div class="cinema-meta">{{ c.scheduleCount }} 场</div>
                 <RouterLink
                   class="primary-button"
-                  :to="`/movie/${movieId}?cinema=${c.cinemaId}`"
+                  :to="{
+                    name: 'seat-select',
+                    params: { movieId: movieId },
+                    query: { cinemaId: c.cinemaId, date: (new Date()).toISOString().slice(0, 10) },
+                  }"
                 >选座购票</RouterLink>
               </div>
             </div>
