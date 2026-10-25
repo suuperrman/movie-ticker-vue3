@@ -41,27 +41,48 @@ const totalPrice = computed(() => {
   return seatMap.value.price * selectedCount.value;
 });
 
-// 可售座位 Set（status=0 且 ID 在 schedule_seat 表里）
-const availableSeatIds = computed(() => {
-  if (!seatMap.value?.seats) return new Set();
-  return new Set(seatMap.value.seats.filter(s => Number(s.status) === 0).map(s => String(s.id)));
-});
+// ========== 解析后端 Bitmap 压缩数据 ==========
 
-// 座位 code → 状态（统一把后端字符串数字转成正确类型）
+// seatIds 扁平数组：idx = (rowNo-1)*colCount + (colNo-1)
+// 前端下单时直接用 seatIds[idx] 即可
+const seatIdsArr = computed(() => seatMap.value?.seatIds || []);
+
+// Bitmap 解码：2bit/座，大端序，Base64
+// status 映射：00→0(可售) 01→1(锁定) 10→2(已售)
 const seatStatusMap = computed(() => {
   const map = new Map();
-  if (seatMap.value?.seats) {
-    for (const s of seatMap.value.seats) {
-      map.set(`${Number(s.rowNo)}-${Number(s.colNo)}`, {
-        id: String(s.id),
-        status: Number(s.status),  // 0=可售 1=锁定 2=已售
-        code: s.seatCode,
-        rowNo: Number(s.rowNo),
-        colNo: Number(s.colNo),
+  const m = seatMap.value;
+  if (!m?.seatStatusBitmap || !m?.seatIds) return map;
+
+  const rowCount = Number(m.rowCount);
+  const colCount = Number(m.colCount);
+  const bytes = atob(m.seatStatusBitmap).split('').map(c => c.charCodeAt(0));
+
+  for (let r = 1; r <= rowCount; r++) {
+    for (let c = 1; c <= colCount; c++) {
+      const idx = (r - 1) * colCount + (c - 1);
+      // 2bit 解码：大端 → idx 在 byte 内从高到低
+      const byteIdx = Math.floor(idx / 4);
+      const bitPos = (3 - (idx % 4)) * 2; // 6, 4, 2, 0
+      const status = (bytes[byteIdx] >> bitPos) & 0x03;
+      const id = m.seatIds[idx];
+      map.set(`${r}-${c}`, {
+        rowNo: r, colNo: c,
+        id: id && id !== '0' ? String(id) : null,
+        status
       });
     }
   }
   return map;
+});
+
+// 可售座位 Set（status=0）
+const availableSeatIds = computed(() => {
+  const set = new Set();
+  for (const [, v] of seatStatusMap.value) {
+    if (v.status === 0 && v.id) set.add(v.id);
+  }
+  return set;
 });
 
 // 中间过道位置：colCount/2 之后加一列 gap
@@ -70,20 +91,31 @@ const aisleCol = computed(() => {
   return Math.floor(Number(seatMap.value.colCount) / 2);
 });
 
-// 生成座位网格（带过道占位）
-// 每行变成：[座位1, ..., 座位aisleCol, null(过道), 座位aisleCol+1, ...]
+// 默认骨架尺寸（影院标准大概 15行 × 20列）
+const SKELETON_ROWS = 15;
+const SKELETON_COLS = 20;
+
+// 座位网格（三种模式：骨架/真实/空）
+// 骨架：loading 时画全灰占位，真实数据回来后覆盖
 const seatGrid = computed(() => {
-  if (!seatMap.value) return [];
-  const rowCount = Number(seatMap.value.rowCount);
-  const colCount = Number(seatMap.value.colCount);
-  const gap = aisleCol.value;
+  // 完全没数据且没在加载 → 不渲染
+  if (!seatMap.value && !loadingSeats.value) return [];
+
+  // 决定用什么尺寸
+  const rowCount = seatMap.value ? Number(seatMap.value.rowCount) : SKELETON_ROWS;
+  const colCount = seatMap.value ? Number(seatMap.value.colCount) : SKELETON_COLS;
   const grid = [];
+  const hasRealData = seatStatusMap.value.size > 0;
   for (let r = 1; r <= rowCount; r++) {
     const row = [];
     for (let c = 1; c <= colCount; c++) {
-      row.push(seatStatusMap.value.get(`${r}-${c}`) || null);
-      // 在 gap 列之后插一个 null 作为过道
-      if (c === gap) row.push(null);
+      if (hasRealData) {
+        row.push(seatStatusMap.value.get(`${r}-${c}`) || null);
+      } else {
+        // 骨架占位（status=-1 → 灰色不可选）
+        row.push({ rowNo: r, colNo: c, status: -1, id: null, code: null });
+      }
+      // 过道已移除，不再插入 null 占位
     }
     grid.push(row);
   }
@@ -130,7 +162,8 @@ function seatKey(seatInfo) {
 }
 
 function toggleSeat(seatInfo) {
-  if (!seatInfo) return;           // 空位（影厅中间过道）
+  if (!seatInfo) return;              // 过道空位
+  if (seatInfo.status === -1) return; // 骨架占位，禁止操作
   if (seatInfo.status !== 0) return; // 已售或锁定，禁止选择
 
   const key = seatKey(seatInfo);
@@ -147,12 +180,13 @@ function toggleSeat(seatInfo) {
 }
 
 function isSelected(seatInfo) {
-  if (!seatInfo) return false;
+  if (!seatInfo || seatInfo.status === -1) return false;
   return selectedSeatIds.value.includes(seatKey(seatInfo));
 }
 
 function seatClass(seatInfo) {
   if (!seatInfo) return 'seat empty';
+  if (seatInfo.status === -1) return 'seat skeleton';  // 骨架（灰色不可选）
   if (isSelected(seatInfo)) return 'seat selected';
   if (seatInfo.status !== 0) return 'seat sold';
   return 'seat available';
@@ -260,8 +294,8 @@ onMounted(loadSessions);
         </button>
       </div>
 
-      <!-- 座位图区域 -->
-      <div class="seat-area" v-if="seatMap">
+      <!-- 座位图区域（骨架模式也渲染，全灰占位） -->
+      <div class="seat-area" v-if="seatGrid.length > 0">
         <!-- 屏幕提示 -->
         <div class="screen-bar">
           <span>银 幕</span>
@@ -282,23 +316,29 @@ onMounted(loadSessions);
                 type="button"
                 class="seat"
                 :class="seatClass(seat)"
-                :disabled="!seat || seat.status !== 0"
-                :title="seat
+                :disabled="!seat || seat.status === -1 || seat.status !== 0"
+                :title="seat && seat.status !== -1
                   ? `${seat.rowNo}排${seat.colNo}座 ${seat.status === 0 ? '可售' : seat.status === 1 ? '锁定中' : '已售'}`
                   : ''"
                 @click="toggleSeat(seat)"
               >
-                <!-- 座位上不显示文字，保持视觉干净 -->
               </button>
             </div>
           </div>
         </div>
 
-        <!-- 图例 -->
+        <!-- 骨架加载提示 -->
+        <div v-if="loadingSeats && seatGrid.length > 0" class="skeleton-hint">
+          <Loader2 :size="14" class="spin" />
+          <span>座位数据加载中...</span>
+        </div>
+
+        <!-- 图例（四种状态） -->
         <div class="legend">
-          <span class="legend-item"><span class="legend-dot sold"></span>不可选</span>
-          <span class="legend-item"><span class="legend-dot available"></span>未选</span>
+          <span class="legend-item"><span class="legend-dot available"></span>可售</span>
           <span class="legend-item"><span class="legend-dot selected"></span>已选</span>
+          <span class="legend-item"><span class="legend-dot sold"></span>已售</span>
+          <span class="legend-item"><span class="legend-dot skeleton"></span>不可选</span>
         </div>
       </div>
 
@@ -316,7 +356,7 @@ onMounted(loadSessions);
             <span class="price">¥{{ totalPrice.toFixed(2) }}</span>
           </div>
           <div class="selected-codes" v-if="selectedSeatIds.length > 0">
-            {{ selectedSeatIds.map(id => seatMap.seats.find(s => s.id === id)?.seatCode).filter(Boolean).join('、') }}
+            {{ selectedSeatIds.map(key => { const s = seatStatusMap.get(key); return s ? `${String.fromCharCode(64 + s.rowNo)}${s.colNo}` : null; }).filter(Boolean).join('、') }}
           </div>
         </div>
         <button
@@ -444,25 +484,48 @@ onMounted(loadSessions);
   display: flex; gap: 3px;
 }
 
-/* ========== 座位（核心三色样式） ========== */
+/* ========== 座位（四色：骨架灰 / 白=可售 / 亮红=已选 / 深红=已售） ========== */
 .seat {
   width: 30px; height: 30px;
   border: none;
-  border-radius: 6px 6px 2px 2px;  /* 底部稍尖，模拟影院座位 */
+  border-radius: 6px 6px 2px 2px;
   cursor: pointer;
   display: block;
   padding: 0;
-  transition: transform 0.1s, filter 0.1s;
+  transition: transform 0.1s, filter 0.1s, background 0.2s;
   outline: none;
 }
 
-/* 空位（过道） */
+/* 过道 → 一条细线竖栏 */
 .seat.empty {
-  visibility: hidden;
-  width: 18px;  /* 过道比普通 gap 宽一点 */
+  visibility: visible;
+  background: transparent;
+  width: 8px;
+  border-radius: 2px;
+  cursor: default;
+}
+.seat.empty::before {
+  content: '';
+  display: block;
+  width: 2px; height: 22px;
+  margin: 3px auto 0;
+  background: #c8cdc8;
+  border-radius: 2px;
 }
 
-/* 可售未选 → 白色 */
+/* 骨架占位 → 灰色闪烁（加载中） */
+.seat.skeleton {
+  background: #d4d8d4;
+  border: 1.5px solid #b0b4b0;
+  cursor: default;
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
+}
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.85; }
+}
+
+/* 可售未选 → 白色+绿边框 */
 .seat.available {
   background: #ffffff;
   border: 1.5px solid #56a86a;
@@ -474,7 +537,7 @@ onMounted(loadSessions);
   box-shadow: 0 4px 8px rgba(86,168,106,0.3), inset 0 -2px 0 rgba(86,168,106,0.2);
 }
 
-/* 已选 → 红色 */
+/* 已选 → 亮红 */
 .seat.selected {
   background: #e74c3c;
   border: 1.5px solid #c0392b;
@@ -482,28 +545,38 @@ onMounted(loadSessions);
   transform: scale(1.08);
 }
 
-/* 不可选（已售/锁定）→ 灰色 */
+/* 已售/锁定 → 深红 */
 .seat.sold,
-.seat:disabled {
-  background: #d4d8d4;
-  border: 1.5px solid #b0b4b0;
+.seat:disabled:not(.skeleton) {
+  background: #c0392b;
+  border: 1.5px solid #7b241c;
   cursor: not-allowed;
-  filter: saturate(0.5);
+  box-shadow: inset 0 -2px 0 rgba(123,36,28,0.4);
+}
+
+/* 骨架加载提示条 */
+.skeleton-hint {
+  display: inline-flex; align-items: center; gap: 6px;
+  margin-top: 14px; padding: 6px 14px;
+  background: rgba(200,210,200,0.25);
+  border-radius: 16px;
+  font-size: 12px; color: #8a8a8a;
 }
 
 /* Legend */
 .legend {
-  display: flex; gap: 24px; justify-content: center;
+  display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;
   margin-top: 28px; font-size: 13px; color: #8a8a8a;
 }
-.legend-item { display: inline-flex; align-items: center; gap: 8px; }
+.legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .legend-dot {
-  width: 22px; height: 22px;
+  width: 20px; height: 20px;
   border-radius: 6px 6px 2px 2px;
 }
-.legend-dot.sold { background: #d4d8d4; border: 1.5px solid #b0b4b0; }
 .legend-dot.available { background: #ffffff; border: 1.5px solid #56a86a; }
 .legend-dot.selected { background: #e74c3c; border: 1.5px solid #c0392b; }
+.legend-dot.sold { background: #c0392b; border: 1.5px solid #7b241c; }
+.legend-dot.skeleton { background: #d4d8d4; border: 1.5px solid #b0b4b0; }
 
 /* Confirm Bar */
 .confirm-bar {

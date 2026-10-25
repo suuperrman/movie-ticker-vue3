@@ -1,9 +1,12 @@
 <script setup>
-import { Loader2 } from '@lucide/vue';
+import { Loader2, Search } from '@lucide/vue';
 import { computed, onMounted, ref } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRouter } from 'vue-router';
 
 import { getComingShowing, getHotShowing } from '@/api/movie.js';
+
+const router = useRouter();
+const searchKeyword = ref('');
 
 const activeTab = ref('hot');
 const loading = ref(false);
@@ -47,11 +50,43 @@ const pages = computed(() => {
   return list;
 });
 
+function goSearch() {
+  const kw = searchKeyword.value.trim();
+  if (!kw) {
+    router.push('/search');
+    return;
+  }
+  router.push({ name: 'search', query: { q: encodeURIComponent(kw) } });
+}
+
+function onSearchKeydown(e) {
+  if (e.key === 'Enter') {
+    goSearch();
+  }
+}
+
 onMounted(loadList);
 </script>
 
 <template>
   <section class="home-page">
+    <!-- 搜索框 -->
+    <div class="home-search">
+      <div class="home-search-bar">
+        <Search :size="18" class="search-icon" />
+        <input
+          v-model="searchKeyword"
+          type="text"
+          class="search-input"
+          placeholder="搜索电影、导演、演员..."
+          @keydown="onSearchKeydown"
+        />
+        <button class="search-btn" type="button" @click="goSearch">
+          搜索
+        </button>
+      </div>
+    </div>
+
     <!-- Tab 切换 -->
     <div class="movie-tabs">
       <button
@@ -156,6 +191,62 @@ onMounted(loadList);
   width: min(1200px, calc(100% - 40px));
   margin: 0 auto;
   padding: 48px 0;
+}
+
+/* 首页搜索框 */
+.home-search {
+  margin-bottom: 32px;
+  display: flex;
+  justify-content: center;
+}
+
+.home-search-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 500px;
+  background: #fff;
+  border: 2px solid #e5e7eb;
+  border-radius: 50px;
+  padding: 0 4px 0 16px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.home-search-bar:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+}
+
+.home-search-bar .search-icon {
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.home-search-bar .search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 12px 10px;
+  font-size: 14px;
+  background: transparent;
+}
+
+.home-search-bar .search-btn {
+  background: var(--color-primary);
+  color: #fff;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 50px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.home-search-bar .search-btn:hover {
+  background: var(--color-primary-dark);
 }
 
 /* Tabs */

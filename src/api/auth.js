@@ -67,10 +67,68 @@ export function logoutApi() {
 }
 
 /**
+ * 修改用户资料（昵称、头像）
+ * PUT /api/auth/profile
+ *
+ * @param {Object} payload
+ * @param {string} [payload.nickname]  昵称（可选）
+ * @param {string} [payload.avatar]    头像 URL（可选）
+ * @returns {Promise<UserInfoVO>} 更新后的用户信息
+ */
+export function updateProfile(payload) {
+  return http.put('/auth/profile', payload);
+}
+
+/**
+ * 修改密码（已登录用户）
+ * POST /api/auth/change-password
+ *
+ * @param {Object} payload
+ * @param {string} payload.oldPassword  原密码
+ * @param {string} payload.newPassword  新密码
+ */
+export function changePassword(payload) {
+  return http.post('/auth/change-password', payload);
+}
+
+/**
+ * 获取活跃会话列表
+ * GET /api/auth/sessions
+ *
+ * @returns {Promise<SessionVO[]>}
+ */
+export function getSessions() {
+  return http.get('/auth/sessions');
+}
+
+/**
+ * 强制下线某个会话
+ * DELETE /api/auth/sessions/{sessionId}
+ *
+ * @param {string} sessionId
+ */
+export function revokeSession(sessionId) {
+  return http.delete(`/auth/sessions/${sessionId}`);
+}
+
+/**
  * UserInfoVO 结构
  * @typedef {Object} UserInfoVO
  * @property {number} id       用户 ID
  * @property {string} phone    手机号
  * @property {string} nickname 昵称
  * @property {string} avatar   头像 URL（可为 null）
+ */
+
+/**
+ * SessionVO 结构
+ * @typedef {Object} SessionVO
+ * @property {string} sessionId    会话 ID
+ * @property {string} deviceType   设备类型
+ * @property {string} ip           登录 IP
+ * @property {string} location     登录地点
+ * @property {string} userAgent    UA 字符串
+ * @property {string} loginAt      登录时间
+ * @property {string} lastActiveAt 最后活跃时间
+ * @property {boolean} current     是否为当前会话
  */

@@ -149,6 +149,14 @@
   color: #18201c;
   font-size: 14px;
   font-weight: 500;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 160ms ease;
+}
+
+.user-nav .user-info:hover {
+  background: #f5f7f5;
 }
 
 .user-nav .avatar {
@@ -161,6 +169,14 @@
   place-items: center;
   font-size: 13px;
   font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.user-nav .avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 @media (max-width: 700px) {

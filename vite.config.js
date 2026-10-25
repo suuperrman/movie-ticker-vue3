@@ -12,17 +12,15 @@ export default defineConfig({
     },
   },
   server: {
-    // 开发代理：前端统一以 /api 为前缀发请求，Vite 把 /api 去掉后转发到后端。
-    // 后端 application.yml 配置 port:8085，无 context-path，Controller 映射从 /auth 开始。
-    // 请求链路：前端 /api/auth/login → Vite rewrite → http://localhost:8085/auth/login
-    proxy: {
-      '/api': {
-        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8086',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, ''),
-      },
+  host: '0.0.0.0', // 允许局域网手机访问
+  proxy: {
+    '/api': {
+      target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8085',
+      changeOrigin: true,
+      rewrite: (path) => path.replace(/^\/api/, ''),
     },
   },
+},
   build: {
     sourcemap: false,
   },

@@ -3,6 +3,7 @@ import { ArrowLeft, CheckCircle, CreditCard, Loader2, Ticket, XCircle } from '@l
 import { onMounted, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 
+import Countdown from '@/components/Countdown.vue';
 import { cancelOrder, getOrderDetail, payOrder } from '@/api/order.js';
 
 const route = useRoute();
@@ -57,12 +58,25 @@ async function handleCancel() {
   }
 }
 
+async function handleCountdownExpired() {
+  // 倒计时结束，自动取消订单（静默取消，不弹确认框）
+  if (payState.value !== 'pending') return;
+  try {
+    await cancelOrder(orderId.value);
+    payState.value = 'canceled';
+    await loadOrder();
+  } catch (err) {
+    // 自动取消失败，刷新订单状态以服务端为准
+    await loadOrder();
+  }
+}
+
 function goHome() {
   router.push({ name: 'home' });
 }
 
 function goMyOrders() {
-  router.push({ name: 'home' }); // 我的订单页面还没做，先回首页
+  router.push({ name: 'my-orders' });
 }
 
 onMounted(loadOrder);
@@ -103,6 +117,14 @@ onMounted(loadOrder);
         <div class="status-text">
           <div class="status-title">订单已取消</div>
           <div class="status-sub">座位已释放</div>
+        </div>
+      </div>
+      <!-- 待支付：倒计时横幅 -->
+      <div class="status-banner pending" v-else-if="payState === 'pending' && order.expireAt">
+        <Countdown :expire-at="order.expireAt" @expired="handleCountdownExpired" />
+        <div class="status-text">
+          <div class="status-title">请尽快完成支付</div>
+          <div class="status-sub">超时后订单将自动取消，座位将被释放</div>
         </div>
       </div>
 
@@ -204,6 +226,20 @@ onMounted(loadOrder);
 }
 .status-banner.canceled {
   background: #fbe8e8; color: #d43838;
+}
+.status-banner.pending {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+}
+.status-banner.pending .status-text {
+  flex: 1;
+}
+.status-banner.pending .status-title {
+  color: #c2410c;
 }
 .status-title { font-size: 16px; font-weight: 600; }
 .status-sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }

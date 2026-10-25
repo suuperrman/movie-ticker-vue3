@@ -39,9 +39,12 @@ function handleLogout() {
         <!-- 已登录 -->
         <template v-if="userStore.isLoggedIn">
           <RouterLink class="nav-link" to="/">首页</RouterLink>
-          <div class="user-info">
+          <RouterLink class="nav-link" to="/search">搜索</RouterLink>
+          <RouterLink class="nav-link" to="/orders">我的订单</RouterLink>
+          <div class="user-info" role="button" tabindex="0" @click="$router.push({ name: 'profile' })" @keyup.enter="$router.push({ name: 'profile' })">
             <span class="avatar">
-              <template v-if="userStore.nickname">
+              <img v-if="userStore.userInfo?.avatar" :src="userStore.userInfo.avatar" class="avatar-img" alt="" />
+              <template v-else-if="userStore.nickname">
                 {{ userStore.nickname.charAt(0).toUpperCase() }}
               </template>
               <template v-else>
@@ -57,6 +60,8 @@ function handleLogout() {
         </template>
         <!-- 未登录 -->
         <template v-else>
+          <RouterLink class="nav-link" to="/">首页</RouterLink>
+          <RouterLink class="nav-link" to="/search">搜索</RouterLink>
           <RouterLink class="primary-button" to="/login">登录 / 注册</RouterLink>
         </template>
       </nav>

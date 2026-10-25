@@ -10,6 +10,12 @@ import NotFoundView from '@/views/NotFoundView.vue';
 // requiresAuth 未设置或为 false 时，路由守卫不拦截
 const routes = [
   { path: '/', name: 'home', component: HomeView, meta: { title: '首页' } },
+  {
+    path: '/search',
+    name: 'search',
+    component: () => import('@/views/SearchView.vue'),
+    meta: { title: '搜索电影' },
+  },
   { path: '/login', name: 'login', component: LoginView, meta: { title: '登录' } },
   {
     path: '/movie/:id',
@@ -31,6 +37,20 @@ const routes = [
     name: 'order-confirm',
     component: () => import('@/views/OrderConfirmView.vue'),
     meta: { title: '确认订单', requiresAuth: true },
+  },
+  {
+    // 我的订单列表
+    path: '/orders',
+    name: 'my-orders',
+    component: () => import('@/views/MyOrderView.vue'),
+    meta: { title: '我的订单', requiresAuth: true },
+  },
+  {
+    // 用户中心
+    path: '/profile',
+    name: 'profile',
+    component: () => import('@/views/ProfileView.vue'),
+    meta: { title: '个人中心', requiresAuth: true },
   },
   { path: '/:pathMatch(.*)*', name: 'not-found', component: NotFoundView, meta: { title: '404' } },
 ];
